@@ -5,6 +5,20 @@
 # 结构
 ![[my-batis-file-structure.png]]
 
+## 配置
+在 resources/application.properties 中配置:
+
+```Java
+#驱动类名称
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+#数据库连接的url
+spring.datasource.url=jdbc:mysql://localhost:3306/database_name
+#连接数据库的用户名
+spring.datasource.username=root
+#连接数据库的密码
+spring.datasource.password=root
+```
+
 ## 实体类
 - 在 pojo 包下面创建一个实体类
 ```Java
@@ -116,3 +130,4 @@ public class User {
     private String phone;
 }
 ```
+

@@ -296,7 +296,7 @@ where dept_id = (select id from tb_dept where name = '教研部');
 ```
 
 #### 列子查询
-- 子查询返回的结果是一列(可以是多行)
+- 子查询返回的结果是一列(可以是多行) - 用 where ... in ...
 
 ```SQL
 -- 1.查询"销售部"和"市场部"的部门ID
@@ -315,7 +315,7 @@ where dept_id in (select id from tb_dept where name = '教研部' or name = '咨
 ```
 
 #### 行子查询
-- 子查询返回的结果是一行(可以是多列)
+- 子查询返回的结果是一行(可以是多列) - 用 where ... = ...
 ```SQL
 -- 查询"韦一笑"的入职日期 及 职位
 select entrydate , job 

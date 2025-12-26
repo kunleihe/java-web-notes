@@ -28,6 +28,43 @@ http://localhost:8080/users/1  DELETE：删除id为1的用户
 # 开发规范
 ## 项目结构
 
+```
+springboot-web-demo
+├── src/
+│   ├── main/
+│   │   ├── java/
+│   │   │   └── com.example/
+│   │   │       ├── controller/     # 控制层：处理 HTTP 请求 
+│   │   │       │   ├── DeptController.java
+│   │   │       │   ├── EmpController.java
+│   │   │       │   └── UploadController.java
+│   │   │       ├── mapper/         # 数据持久层：MyBatis Mapper 接口
+│   │   │       │   ├── DeptMapper.java
+│   │   │       │   └── EmpMapper.java
+│   │   │       ├── pojo/           # 实体类层：普通 Java 对象
+│   │   │       │   ├── Dept.java
+│   │   │       │   ├── Emp.java
+│   │   │       │   ├── PageBean.java
+│   │   │       │   └── Result.java
+│   │   │       ├── service/        # 业务逻辑层
+│   │   │       │   ├── impl/       # 业务逻辑实现类
+│   │   │       │   │   ├── DeptServiceImpl.java
+│   │   │       │   │   └── EmpServiceImpl.java
+│   │   │       │   ├── DeptService.java (Interface)
+│   │   │       │   └── EmpService.java (Interface)
+│   │   │       ├── utils/          # 工具类
+│   │   │       │   ├── AliOSSProperties.java
+│   │   │       │   └── AliOSSUtils.java
+│   │   │       └── SpringbootWebDemoApplication.java # 项目启动类
+│   │   └── resources/              # 资源文件
+│   │       ├── com.example.mapper/ # MyBatis SQL 映射 XML 文件
+│   │       ├── static/             # 静态资源（JS, CSS, 图片等）
+│   │       ├── templates/          # 模板文件（如 Thymeleaf）
+│   │       └── application.yml     # 项目核心配置文件
+│   └── test/                       # 测试代码
+└── pom.xml                         # Maven 项目依赖管理文件
+```
+
 ## 开发流程
 
 ## 1. 写持久层 - Mapper
@@ -127,6 +164,30 @@ public class UploadController {
 解决方案：保证每次上传文件时文件名都唯一的（使用UUID获取随机文件名）
 
 # YML配置文件
+```YML
+spring:  
+  datasource:  
+    driver-class-name: com.mysql.cj.jdbc.Driver  
+    url: jdbc:mysql://localhost:3306/springboot-web-demo-db  
+    username: root  
+    password: root  
+  servlet:  
+    multipart:  
+      max-file-size: 10MB  
+      max-request-size: 100MB  
+  
+mybatis:  
+  configuration:  
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl  
+    map-underscore-to-camel-case: true  
+  
+aliyun:  
+  oss:  
+    endpoint: https://oss-cn-hangzhou.aliyuncs.com  
+    accessKeyId: yourAccessKey  
+    accessKeySecret: yourAccessKeySecret  
+    bucketName: yourBucketName
+```
 ## 基本语法
 - 大小写敏感
 - 数值前边必须有空格，作为分隔符

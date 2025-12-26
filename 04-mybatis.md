@@ -6,6 +6,7 @@
 ![[my-batis-file-structure.png]]
 
 ## 配置
+（推荐使用YML格式的配置文件，详见[[05-springboot-web]]-YML配置文件）
 在 resources/application.properties 中配置:
 
 ```yml

@@ -639,3 +639,388 @@ public class GlobalExceptionHandler {
 
 @RestControllerAdvice = @ControllerAdvice + @ResponseBody
 处理异常的方法返回值会转换为json后再响应给前端
+
+# 事务管理
+为什么需要事务？
+- 保证数据的一致性
+
+案例：
+```Java
+@Slf4j
+@Service
+public class DeptServiceImpl implements DeptService {
+    @Autowired
+    private DeptMapper deptMapper;
+
+    @Autowired
+    private EmpMapper empMapper;
+
+
+    //根据部门id，删除部门信息及部门下的所有员工
+    @Override
+    public void delete(Integer id){
+        //根据部门id删除部门信息
+        deptMapper.deleteById(id);
+        
+        //模拟：异常发生
+        int i = 1/0;
+
+        //删除部门下的所有员工信息
+        empMapper.deleteByDeptId(id);
+        }
+}
+```
+
+- 在这个例子中，指定的部门被删除了，然后出现了异常，导致指定部门下的员工并没有被删除，数据出现了不一致。
+- 因此，我们需要用事务来管理这个操作。
+- 因为一个事务中的多个业务操作，要么全部成功，要么全部失败。
+- 在方法运行之前，开启事务。如果方法执行成功，提交事务；如果方法执行中出现异常，回滚事务
+## @Transactional 注解
+- @Transactional作用：在当前这个方法执行开始之前来开启事务，方法执行完毕之后提交事务。如果在这个方法执行的过程当中出现了异常，就会进行事务的回滚操作。
+- @Transactional注解：我们一般会在**业务层**当中来控制事务，因为在业务层当中，一个业务功能可能会包含多个数据访问的操作。在业务层来控制事务，我们就可以将多个数据访问操作控制在一个事务范围内。
+
+@Transactional注解书写位置：
+- 方法
+    - 当前方法交给spring进行事务管理
+- 类
+    - 当前类中所有的方法都交由spring进行事务管理
+- 接口
+    - 接口下所有的实现类当中所有的方法都交给spring 进行事务管理
+
+代码示例：
+```Java
+@Slf4j
+@Service
+public class DeptServiceImpl implements DeptService {
+    @Autowired
+    private DeptMapper deptMapper;
+
+    @Autowired
+    private EmpMapper empMapper;
+
+    @Override
+    @Transactional  //当前方法添加了事务管理
+    public void delete(Integer id){
+        //根据部门id删除部门信息
+        deptMapper.deleteById(id);
+        //模拟：异常发生
+        int i = 1/0;
+
+        //删除部门下的所有员工信息
+        empMapper.deleteByDeptId(id);    }
+}
+```
+
+可以在application.yml配置文件中开启事务管理日志，这样就可以在控制看到和事务相关的日志信息了。
+```YML
+#spring事务管理日志
+logging:
+  level:
+    org.springframework.jdbc.support.JdbcTransactionManager: debug
+```
+
+### rollBackFor 属性
+- 默认情况下，只有出现RuntimeException(运行时异常)才会回滚事务，而受检异常 (Checked Exception) 则不会
+- 想让所有的异常都回滚或回滚指定类型的异常，需要来配置@Transactional注解当中的rollbackFor属性，通过rollbackFor这个属性可以指定出现何种异常类型回滚事务。
+
+```Java
+@Override  
+@Transactional(rollbackFor = Exception.class)  
+public void delete(Integer id) {  
+    // 调用持久层删除功能  
+    deptMapper.deleteById(id);  
+  
+    // 模拟：异常发生  
+    int i = 1 / 0;  
+  
+    empMapper.deleteByDeptId(id);  
+}
+```
+
+### propagation 属性
+- 用来配置事务的传播行为，即当一个事务方法被另一个事务方法调用时，这个事务方法应该如何进行事务控制
+
+| 属性值           | 含义                                 |
+| ------------- | ---------------------------------- |
+| REQUIRED      | 【默认值】需要事务，有则加入，无则创建新事务             |
+| REQUIRES_NEW  | 需要新事务，无论有无，总是创建新事务                 |
+| SUPPORTS      | 支持事务，有则加入，无则在无事务状态中运行              |
+| NOT_SUPPORTED | 不支持事务，在无事务状态下运行,如果当前存在已有事务,则挂起当前事务 |
+| MANDATORY     | 必须有事务，否则抛异常                        |
+| NEVER         | 必须没事务，否则抛异常                        |
+| …             |                                    |
+
+重点关注：
+- REQUIRED
+- REQUIRE_NEW:
+	- 当我们不希望事务之间相互影响时，可以使用该传播行为。比如：下订单前需要记录日志，不论订单保存成功与否，都需要保证日志记录能够记录成功。
+
+# AOP
+- AOP英文全称：Aspect Oriented Programming（面向切面编程、面向方面编程）
+- AOP的作用：在程序运行期间在不修改源代码的基础上对已有方法进行增强（无侵入性: 解耦）
+
+案例：
+- 在一个项目中有很多业务功能，我们想计算每个业务功能执行耗费的时间
+- 在每个业务开始前获取时间，结束时获取时间并计算 -- 这样很繁琐
+- 此时，我们可以定义一个模版方法，将记录方法执行耗时这一部分公共的逻辑代码定义在模板方法当中
+- 当我们调用一个业务方法时，并不会直接执行该方法的逻辑，而是会执行我们所定义的 模板方法 ， 在模板方法中执行原始的业务方法
+![[aop.png]]
+
+AOP的优势
+- 减少重复代码
+- 提高开发效率
+- 维护方便
+
+## 实现
+在 `pom.xml` 中导入依赖
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-aop</artifactId>
+</dependency>
+```
+
+在 `aop/` 包中：
+```Java
+@Component
+@Aspect //当前类为切面类
+@Slf4j
+public class TimeAspect {
+
+    @Around("execution(* com.itheima.service.*.*(..))")
+    public Object recordTime(ProceedingJoinPoint pjp) throws Throwable {
+        //记录方法执行开始时间
+        long begin = System.currentTimeMillis();
+
+        //执行原始方法
+        Object result = pjp.proceed();
+
+        //记录方法执行结束时间
+        long end = System.currentTimeMillis();
+
+        //计算方法执行耗时
+        log.info(pjp.getSignature()+"执行耗时: {}毫秒",end-begin);
+
+        return result;
+    }
+}
+```
+
+## 核心概念
+- JoinPoint 连接点
+	- 可以被AOP控制的方法
+- PointCut 切入点
+	- 真正要链接的几个点，上述代码中的`("execution(* com.itheima.service.*.*(..))")`
+- Advice 通知
+	- 拦截之后具体要做什么，如记录开始时间、执行原始方法、记录结束时间
+- Aspect 切面
+	- 切入点 + 通知 = 切面
+- Target 目标对象
+	- 被拦截的那些 Service 实现类
+
+## 通知类型
+Spring中AOP的通知类型：
+- @Around：环绕通知，此注解标注的通知方法在目标方法前、后都被执行。如果原始方法有异常，环绕通知中的后置代码不会再执行
+- @Before：前置通知，此注解标注的通知方法在目标方法前被执行
+- @After ：后置通知，此注解标注的通知方法在目标方法后被执行，无论是否有异常都会执行
+- @AfterReturning ： 返回后通知，此注解标注的通知方法在目标方法后被执行，有异常不会执行
+- @AfterThrowing ： 异常后通知，此注解标注的通知方法发生异常后执行
+
+Spring提供了@PointCut注解，该注解的作用是将公共的切入点表达式抽取出来，需要用到时引用该切入点表达式即可。
+```Java
+@Slf4j
+@Component
+@Aspect
+public class MyAspect1 {
+
+    //切入点方法（公共的切入点表达式）
+    @Pointcut("execution(* com.itheima.service.*.*(..))")
+    private void pt(){
+
+    }
+
+    //前置通知（引用切入点）
+    @Before("pt()")
+    public void before(JoinPoint joinPoint){
+        log.info("before ...");
+
+    }
+
+    //环绕通知
+    @Around("pt()")
+    public Object around(ProceedingJoinPoint proceedingJoinPoint) throws Throwable {
+        log.info("around before ...");
+
+        //调用目标对象的原始方法执行
+        Object result = proceedingJoinPoint.proceed();
+        //原始方法在执行时：发生异常
+        //后续代码不在执行
+
+        log.info("around after ...");
+        return result;
+    }
+
+    //后置通知
+    @After("pt()")
+    public void after(JoinPoint joinPoint){
+        log.info("after ...");
+    }
+
+    //返回后通知（程序在正常执行的情况下，会执行的后置通知）
+    @AfterReturning("pt()")
+    public void afterReturning(JoinPoint joinPoint){
+        log.info("afterReturning ...");
+    }
+
+    //异常通知（程序在出现异常的情况下，执行的后置通知）
+    @AfterThrowing("pt()")
+    public void afterThrowing(JoinPoint joinPoint){
+        log.info("afterThrowing ...");
+    }
+}
+```
+
+## 通知顺序
+通过以上程序运行可以看出在不同切面类中，默认按照切面类的类名字母排序：
+- 目标方法前的通知方法：字母排名靠前的先执行
+- 目标方法后的通知方法：字母排名靠前的后执行
+
+如果我们想控制通知的执行顺序有两种方式：
+1. 修改切面类的类名（这种方式非常繁琐、而且不便管理）
+2. 使用Spring提供的@Order注解
+```Java
+@Slf4j
+@Component
+@Aspect
+@Order(2)  //切面类的执行顺序（前置通知：数字越小先执行; 后置通知：数字越小越后执行）
+public class MyAspect2 {
+    //前置通知
+    @Before("execution(* com.itheima.service.*.*(..))")
+    public void before(){
+        log.info("MyAspect2 -> before ...");
+    }
+
+    //后置通知
+    @After("execution(* com.itheima.service.*.*(..))")
+    public void after(){
+        log.info("MyAspect2 -> after ...");
+    }
+}
+```
+
+## 切入点表达式
+### execution
+```Java
+execution(访问修饰符?  返回值  包名.类名.?方法名(方法参数) throws 异常?)
+```
+其中带`?`的表示可以省略的部分
+- 访问修饰符：可省略（比如: public、protected）
+- 包名.类名： 可省略
+- throws 异常：可省略（注意是方法上声明抛出的异常，不是实际抛出的异常）
+
+可以使用通配符描述切入点
+- `*` ：单个独立的任意符号，可以通配任意返回值、包名、类名、方法名、任意类型的一个参数，也可以通配包、类、方法名的一部分
+- `..` ：多个连续的任意符号，可以通配任意层级的包，或任意类型、任意个数的参数
+
+切入点表达式的语法规则：
+1. 方法的访问修饰符可以省略
+2. 返回值可以使用`*`号代替（任意返回值类型）
+3. 包名可以使用`*`号代替，代表任意包（一层包使用一个`*`）
+4. 使用`..`配置包名，标识此包以及此包下的所有子包
+5. 类名可以使用`*`号代替，标识任意类
+6. 方法名可以使用`*`号代替，表示任意方法
+7. 可以使用 `*` 配置参数，一个任意类型的参数
+8. 可以使用`..` 配置参数，任意个任意类型的参数
+
+### @annotation
+实现步骤：
+1. 编写自定义注解
+2. 在业务类要做为连接点的方法上添加自定义注解
+
+自定义注解：MyLog
+```Java
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public @interface MyLog {
+}
+```
+
+这三个注解的作用是告诉 Java 编译器和 Spring 框架：
+- `@Target` 这个注解贴在哪
+	- `ElementType.METHOD` 只能贴在方法上
+	- `ElementType.TYPE` 可以贴在类/接口上
+	- `ElementType.FIELD` 可以贴在成元变量上
+- `@Retention` 保留多久
+- `@Documented` 是否出现在文档里
+
+业务类：DeptServiceImpl
+```Java
+@Slf4j
+@Service
+public class DeptServiceImpl implements DeptService {
+    @Autowired
+    private DeptMapper deptMapper;
+
+    @Override
+    @MyLog //自定义注解（表示：当前方法属于目标方法）
+    public List<Dept> list() {
+        List<Dept> deptList = deptMapper.list();
+        //模拟异常
+        //int num = 10/0;
+        return deptList;
+    }
+    
+    @Override
+    @MyLog  //自定义注解（表示：当前方法属于目标方法）
+    public void delete(Integer id) {
+        //1. 删除部门
+        deptMapper.delete(id);
+    }
+
+
+    @Override
+    public void save(Dept dept) {
+        dept.setCreateTime(LocalDateTime.now());
+        dept.setUpdateTime(LocalDateTime.now());
+        deptMapper.save(dept);
+    }
+
+    @Override
+    public Dept getById(Integer id) {
+        return deptMapper.getById(id);
+    }
+
+    @Override
+    public void update(Dept dept) {
+        dept.setUpdateTime(LocalDateTime.now());
+        deptMapper.update(dept);
+    }
+}
+```
+
+切面类：
+```Java
+@Slf4j
+@Component
+@Aspect
+public class MyAspect6 {
+    //针对list方法、delete方法进行前置通知和后置通知
+
+    //前置通知
+    @Before("@annotation(com.itheima.anno.MyLog)")
+    public void before(){
+        log.info("MyAspect6 -> before ...");
+    }
+
+    //后置通知
+    @After("@annotation(com.itheima.anno.MyLog)")
+    public void after(){
+        log.info("MyAspect6 -> after ...");
+    }
+}
+```
+## 连接点
+连接点可以简单理解为可以被AOP控制的方法。
+- 对于@Around通知，获取连接点信息只能使用 `ProceedingJoinPoint` 类型
+- 对于其他四种通知，获取连接点信息只能使用JoinPoint，它是 `ProceedingJoinPoint` 的父类型
